@@ -129,8 +129,8 @@ public class ZkCoordinator implements PartitionCoordinator {
     }
     
     private boolean myOwnership(GlobalPartitionId id) {
-        int val = Math.abs(id.host.hashCode() + 23 * id.partition);        
-        return val % _totalTasks == _taskIndex;
+        int val = id.host.hashCode() + 23 * id.partition;        
+        return Math.abs(val % _totalTasks) == _taskIndex;
     }
     
     
