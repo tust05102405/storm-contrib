@@ -11,6 +11,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import org.apache.log4j.Logger;
 import kafka.message.Message;
 import storm.kafka.PartitionManager.KafkaMessageId;
@@ -62,6 +64,9 @@ public class KafkaSpout extends BaseRichSpout {
     long _lastUpdateMs = 0;
 
     int _currPartitionIndex = 0;
+    AtomicInteger ackCount = new AtomicInteger(0);
+    AtomicInteger emitCount = new AtomicInteger(0);
+    final long startTs = System.currentTimeMillis();
 
     public KafkaSpout(SpoutConfig spoutConf) {
         _spoutConfig = spoutConf;
@@ -107,10 +112,15 @@ public class KafkaSpout extends BaseRichSpout {
             // in case the number of managers decreased
             _currPartitionIndex = _currPartitionIndex % managers.size();
             EmitState state = managers.get(_currPartitionIndex).next(_collector);
+            emitCount.incrementAndGet();
+            if (Math.random() < 0.01 && state != EmitState.NO_EMITTED && (System.currentTimeMillis() - startTs) > 1000) {
+                LOG.info("emit speed about: " + (emitCount.get() / ((System.currentTimeMillis() - startTs) / 1000)) + " msg/s.");
+            }
             if(state!=EmitState.EMITTED_MORE_LEFT) {
                 _currPartitionIndex = (_currPartitionIndex + 1) % managers.size();
             }
             if(state!=EmitState.NO_EMITTED) {
+                LOG.info("EmitState.NO_EMITTED");
                 break;
             }
         }
@@ -127,6 +137,10 @@ public class KafkaSpout extends BaseRichSpout {
         PartitionManager m = _coordinator.getManager(id.partition);
         if(m!=null) {
             m.ack(id.offset);
+            ackCount.incrementAndGet();
+            if (Math.random() < 0.01 && (System.currentTimeMillis() - startTs) > 1000) {
+                LOG.info("ack speed about: " + (ackCount.get() / ((System.currentTimeMillis() - startTs) / 1000)) + " msg/s.");
+            }
         }                
     }
 

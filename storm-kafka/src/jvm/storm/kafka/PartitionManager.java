@@ -51,6 +51,8 @@ public class PartitionManager {
 
         //the id stuff makes sure the spout doesn't reset the offset if it restarts
         if(zooMeta==null || (!topologyInstanceId.equals(zooMeta.id) && spoutConfig.forceFromStart)) {
+            LOG.info("spoutConfig.forceFromStart: " + spoutConfig.forceFromStart);
+            LOG.info("spoutConfig.startOffsetTime: " + spoutConfig.startOffsetTime);
             _committedTo = _consumer.getOffsetsBefore(spoutConfig.topic, id.partition, spoutConfig.startOffsetTime, 1)[0];
         } else {
             _committedTo = zooMeta.offset;
@@ -83,25 +85,20 @@ public class PartitionManager {
     }
 
     private void fill() {
-        //LOG.info("Fetching from Kafka: " + _consumer.host() + ":" + _partition.partition + " from offset " + _emittedToOffset);
+        LOG.info("Fetching from Kafka: " + _consumer.host() + ":" + _partition.partition + " from offset " + _emittedToOffset);
         ByteBufferMessageSet msgs = _consumer.fetch(
                 new FetchRequest(
                     _spoutConfig.topic,
                     _partition.partition,
                     _emittedToOffset,
                     _spoutConfig.fetchSizeBytes));
-        int numMessages = msgs.underlying().size();
-        if(numMessages>0) {
-          LOG.info("Fetched " + numMessages + " messages from Kafka: " + _consumer.host() + ":" + _partition.partition);
-        }
+        LOG.info("Fetched " + msgs.underlying().size() + " messages from Kafka: " + _consumer.host() + ":" + _partition.partition);
         for(MessageAndOffset msg: msgs) {
             _pending.add(_emittedToOffset);
             _waitingToEmit.add(new MessageAndRealOffset(msg.message(), _emittedToOffset));
             _emittedToOffset = msg.offset();
         }
-        if(numMessages>0) {
-          LOG.info("Added " + numMessages + " messages from Kafka: " + _consumer.host() + ":" + _partition.partition + " to internal buffers");
-        }
+        LOG.info("Added " + msgs.underlying().size() + " messages from Kafka: " + _consumer.host() + ":" + _partition.partition + " to internal buffers");
     }
 
     public void ack(Long offset) {
