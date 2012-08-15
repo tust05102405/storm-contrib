@@ -1,6 +1,7 @@
 package storm.kafka;
 
 import backtype.storm.Config;
+import backtype.storm.contrib.signals.spout.BaseSignalSpout;
 import backtype.storm.spout.SpoutOutputCollector;
 import backtype.storm.task.TopologyContext;
 import backtype.storm.topology.OutputFieldsDeclarer;
@@ -11,6 +12,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.log4j.Logger;
@@ -19,7 +21,19 @@ import storm.kafka.PartitionManager.KafkaMessageId;
 
 // TODO: need to add blacklisting
 // TODO: need to make a best effort to not re-emit messages if don't have to
-public class KafkaSpout extends BaseRichSpout {
+public class KafkaSpout extends BaseSignalSpout {
+    private AtomicBoolean activeFlag = new AtomicBoolean(true);
+
+    @Override
+    protected void onSignal(byte[] cmd) {
+        String signalStr = new String(cmd);
+        LOG.info("Received signal: " + signalStr);
+        if("pause".equals(signalStr))
+            activeFlag.set(false);
+        else if (signalStr == "resume")
+            activeFlag.set(true);
+    }
+
     public static class ZooMeta implements Serializable {
         String id;
         long offset;
@@ -68,7 +82,8 @@ public class KafkaSpout extends BaseRichSpout {
     AtomicInteger emitCount = new AtomicInteger(0);
     final long startTs = System.currentTimeMillis();
 
-    public KafkaSpout(SpoutConfig spoutConf) {
+    public KafkaSpout(SpoutConfig spoutConf, String signalName) {
+        super(signalName);
         _spoutConfig = spoutConf;
     }
 
@@ -106,28 +121,30 @@ public class KafkaSpout extends BaseRichSpout {
 
     @Override
     public void nextTuple() {
-        List<PartitionManager> managers = _coordinator.getMyManagedPartitions();
-        for(int i=0; i<managers.size(); i++) {
-            
-            // in case the number of managers decreased
-            _currPartitionIndex = _currPartitionIndex % managers.size();
-            EmitState state = managers.get(_currPartitionIndex).next(_collector);
-            emitCount.incrementAndGet();
-            if (Math.random() < 0.01 && state != EmitState.NO_EMITTED && (System.currentTimeMillis() - startTs) > 1000) {
-                LOG.info("emit speed about: " + (emitCount.get() / ((System.currentTimeMillis() - startTs) / 1000)) + " msg/s.");
-            }
-            if(state!=EmitState.EMITTED_MORE_LEFT) {
-                _currPartitionIndex = (_currPartitionIndex + 1) % managers.size();
-            }
-            if(state!=EmitState.NO_EMITTED) {
-                LOG.info("EmitState.NO_EMITTED");
-                break;
-            }
-        }
+        if (activeFlag.get()) {
+            List<PartitionManager> managers = _coordinator.getMyManagedPartitions();
+            for(int i=0; i<managers.size(); i++) {
 
-        long now = System.currentTimeMillis();
-        if((now - _lastUpdateMs) > _spoutConfig.stateUpdateIntervalMs) {
-            commit();
+                // in case the number of managers decreased
+                _currPartitionIndex = _currPartitionIndex % managers.size();
+                EmitState state = managers.get(_currPartitionIndex).next(_collector);
+                emitCount.incrementAndGet();
+                if (Math.random() < 0.01 && state != EmitState.NO_EMITTED && (System.currentTimeMillis() - startTs) > 1000) {
+                    LOG.info("emit speed about: " + (emitCount.get() / ((System.currentTimeMillis() - startTs) / 1000)) + " msg/s.");
+                }
+                if(state!=EmitState.EMITTED_MORE_LEFT) {
+                    _currPartitionIndex = (_currPartitionIndex + 1) % managers.size();
+                }
+                if(state!=EmitState.NO_EMITTED) {
+                    LOG.info("EmitState.NO_EMITTED");
+                    break;
+                }
+            }
+
+            long now = System.currentTimeMillis();
+            if((now - _lastUpdateMs) > _spoutConfig.stateUpdateIntervalMs) {
+                commit();
+            }
         }
     }
 
