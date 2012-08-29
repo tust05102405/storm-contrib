@@ -3,3 +3,4 @@ lib/
 pom.xml
 .project
 .classpath
+.settings/

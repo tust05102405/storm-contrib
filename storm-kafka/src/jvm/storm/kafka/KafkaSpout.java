@@ -1,6 +1,7 @@
 package storm.kafka;
 
 import backtype.storm.Config;
+import backtype.storm.contrib.signals.client.SignalClient;
 import backtype.storm.contrib.signals.spout.BaseSignalSpout;
 import backtype.storm.spout.SpoutOutputCollector;
 import backtype.storm.task.TopologyContext;
@@ -23,15 +24,19 @@ import storm.kafka.PartitionManager.KafkaMessageId;
 // TODO: need to make a best effort to not re-emit messages if don't have to
 public class KafkaSpout extends BaseSignalSpout {
     private AtomicBoolean activeFlag = new AtomicBoolean(true);
+    private AtomicInteger failCount = new AtomicInteger(0);
+    private com.typesafe.config.Config topologyConfig;
 
     @Override
-    protected void onSignal(byte[] cmd) {
+    public void onSignal(byte[] cmd) {
         String signalStr = new String(cmd);
         LOG.info("Received signal: " + signalStr);
         if("pause".equals(signalStr))
             activeFlag.set(false);
-        else if (signalStr == "resume")
+        else if (signalStr == "resume") {
             activeFlag.set(true);
+            failCount.set(0);
+        }
     }
 
     public static class ZooMeta implements Serializable {
@@ -81,10 +86,14 @@ public class KafkaSpout extends BaseSignalSpout {
     AtomicInteger ackCount = new AtomicInteger(0);
     AtomicInteger emitCount = new AtomicInteger(0);
     final long startTs = System.currentTimeMillis();
+    private SignalClient signalClient; 
 
-    public KafkaSpout(SpoutConfig spoutConf, String signalName) {
-        super(signalName);
+    public KafkaSpout(SpoutConfig spoutConf, String signalName, com.typesafe.config.Config topologyConfig) {
+        super(topologyConfig.getConfig("stormSignalConfig").getString("signalName"));
         _spoutConfig = spoutConf;
+        this.topologyConfig = topologyConfig;
+        signalClient = new SignalClient(topologyConfig.getConfig(
+                "stormSignalConfig").getString("zkHost"), topologyConfig.getConfig("stormSignalConfig").getString("signalName"));
     }
 
     @Override
@@ -165,9 +174,18 @@ public class KafkaSpout extends BaseSignalSpout {
     public void fail(Object msgId) {
         KafkaMessageId id = (KafkaMessageId) msgId;
         PartitionManager m = _coordinator.getManager(id.partition);
+        if(failCount.incrementAndGet() > 100) {
+            try {
+                signalClient.send("pause".getBytes());
+            } catch(Exception e) {
+                LOG.error("signal client has some exception.");
+                e.printStackTrace();
+            }
+        }
         if(m!=null) {
             m.fail(id.offset);
-        } 
+        }
+        LOG.info("fail msg offset: " + id.offset);
     }
 
     @Override
