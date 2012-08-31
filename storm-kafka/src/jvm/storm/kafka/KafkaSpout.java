@@ -88,7 +88,7 @@ public class KafkaSpout extends BaseSignalSpout {
     final long startTs = System.currentTimeMillis();
     private SignalClient signalClient; 
 
-    public KafkaSpout(SpoutConfig spoutConf, String signalName, com.typesafe.config.Config topologyConfig) {
+    public KafkaSpout(SpoutConfig spoutConf, com.typesafe.config.Config topologyConfig) {
         super(topologyConfig.getConfig("stormSignalConfig").getString("signalName"));
         _spoutConfig = spoutConf;
         this.topologyConfig = topologyConfig;
