@@ -1,7 +1,6 @@
 package storm.kafka;
 
 import backtype.storm.Config;
-import backtype.storm.contrib.signals.client.SignalClient;
 import backtype.storm.contrib.signals.spout.BaseSignalSpout;
 import backtype.storm.spout.SpoutOutputCollector;
 import backtype.storm.task.TopologyContext;
@@ -86,13 +85,13 @@ public class KafkaSpout extends BaseSignalSpout {
     AtomicInteger ackCount = new AtomicInteger(0);
     AtomicInteger emitCount = new AtomicInteger(0);
     final long startTs = System.currentTimeMillis();
-    private SignalClient signalClient; 
+    private SignalUtils signalClient; 
 
     public KafkaSpout(SpoutConfig spoutConf, com.typesafe.config.Config topologyConfig) {
         super(topologyConfig.getConfig("stormSignalConfig").getString("signalName"));
         _spoutConfig = spoutConf;
         this.topologyConfig = topologyConfig;
-        signalClient = new SignalClient(topologyConfig.getConfig(
+        signalClient = new SignalUtils(topologyConfig.getConfig(
                 "stormSignalConfig").getString("zkHost"), topologyConfig.getConfig("stormSignalConfig").getString("signalName"));
     }
 
@@ -176,7 +175,7 @@ public class KafkaSpout extends BaseSignalSpout {
         PartitionManager m = _coordinator.getManager(id.partition);
         if(failCount.incrementAndGet() > 100) {
             try {
-                signalClient.send("pause".getBytes());
+                signalClient.send("pause");
             } catch(Exception e) {
                 LOG.error("signal client has some exception.");
                 e.printStackTrace();
