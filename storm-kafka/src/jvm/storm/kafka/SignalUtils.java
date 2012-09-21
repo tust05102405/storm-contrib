@@ -15,7 +15,10 @@ public class SignalUtils implements Serializable {
     public void send(String signal) throws Exception {
         SignalClient signalClient = new SignalClient(zkHost, signalName);
         signalClient.start();
-        signalClient.send(signal.getBytes());
-        signalClient.close();
+        try {
+            signalClient.send(signal.getBytes());
+        } finally {
+            signalClient.close();
+        }
     }
 }

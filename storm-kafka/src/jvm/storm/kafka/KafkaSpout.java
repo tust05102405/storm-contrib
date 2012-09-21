@@ -68,14 +68,11 @@ public class KafkaSpout extends BaseSignalSpout {
     AtomicInteger ackCount = new AtomicInteger(0);
     AtomicInteger emitCount = new AtomicInteger(0);
     final long startTs = System.currentTimeMillis();
-    private SignalUtils signalClient; 
 
     public KafkaSpout(SpoutConfig spoutConf, com.typesafe.config.Config topologyConfig) {
         super(topologyConfig.getConfig("stormSignalConfig").getString("signalName"));
         _spoutConfig = spoutConf;
         this.topologyConfig = topologyConfig;
-        signalClient = new SignalUtils(topologyConfig.getConfig(
-                "stormSignalConfig").getString("zkHost"), topologyConfig.getConfig("stormSignalConfig").getString("signalName"));
     }
 
     @Override
@@ -120,13 +117,12 @@ public class KafkaSpout extends BaseSignalSpout {
                 EmitState state = managers.get(_currPartitionIndex).next(_collector);
                 emitCount.incrementAndGet();
                 if (Math.random() < 0.01 && state != EmitState.NO_EMITTED && (System.currentTimeMillis() - startTs) > 1000) {
-                    LOG.info("emit speed about: " + (emitCount.get() / ((System.currentTimeMillis() - startTs) / 1000)) + " msg/s.");
+                    LOG.debug("emit speed about: " + (emitCount.get() / ((System.currentTimeMillis() - startTs) / 1000)) + " msg/s.");
                 }
                 if(state!=EmitState.EMITTED_MORE_LEFT) {
                     _currPartitionIndex = (_currPartitionIndex + 1) % managers.size();
                 }
                 if(state!=EmitState.NO_EMITTED) {
-                    LOG.info("EmitState.NO_EMITTED");
                     break;
                 }
             }
@@ -146,7 +142,7 @@ public class KafkaSpout extends BaseSignalSpout {
             m.ack(id.offset);
             ackCount.incrementAndGet();
             if (Math.random() < 0.01 && (System.currentTimeMillis() - startTs) > 1000) {
-                LOG.info("ack speed about: " + (ackCount.get() / ((System.currentTimeMillis() - startTs) / 1000)) + " msg/s.");
+                LOG.debug("ack speed about: " + (ackCount.get() / ((System.currentTimeMillis() - startTs) / 1000)) + " msg/s.");
             }
         }                
     }
@@ -157,6 +153,8 @@ public class KafkaSpout extends BaseSignalSpout {
         PartitionManager m = _coordinator.getManager(id.partition);
         if(failCount.incrementAndGet() > 100) {
             try {
+                SignalUtils signalClient = new SignalUtils(topologyConfig.getConfig(
+                    "stormSignalConfig").getString("zkHost"), topologyConfig.getConfig("stormSignalConfig").getString("signalName"));
                 signalClient.send("pause");
             } catch(Exception e) {
                 LOG.error("signal client has some exception.");
