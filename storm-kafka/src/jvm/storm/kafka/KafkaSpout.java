@@ -70,7 +70,7 @@ public class KafkaSpout extends BaseSignalSpout {
     final long startTs = System.currentTimeMillis();
 
     public KafkaSpout(SpoutConfig spoutConf, com.typesafe.config.Config topologyConfig) {
-        super(topologyConfig.getConfig("stormSignalConfig").getString("signalName"));
+        super(topologyConfig.getConfig("storm-signal-config").getString("signal-name"));
         _spoutConfig = spoutConf;
         this.topologyConfig = topologyConfig;
     }
@@ -154,7 +154,7 @@ public class KafkaSpout extends BaseSignalSpout {
         if(failCount.incrementAndGet() > 100) {
             try {
                 SignalUtils signalClient = new SignalUtils(topologyConfig.getConfig(
-                    "stormSignalConfig").getString("zkHost"), topologyConfig.getConfig("stormSignalConfig").getString("signalName"));
+                    "storm-signal-config").getString("zk-host"), topologyConfig.getConfig("storm-signal-config").getString("signal-name"));
                 signalClient.send("pause");
             } catch(Exception e) {
                 LOG.error("signal client has some exception.");
