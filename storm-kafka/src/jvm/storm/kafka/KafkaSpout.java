@@ -31,7 +31,7 @@ public class KafkaSpout extends BaseSignalSpout {
         LOG.info("Received signal: " + signalStr);
         if("pause".equals(signalStr))
             activeFlag.set(false);
-        else if (signalStr == "resume") {
+	else if ("resume".equals(signalStr)) {
             activeFlag.set(true);
             failCount.set(0);
         }
@@ -77,6 +77,7 @@ public class KafkaSpout extends BaseSignalSpout {
 
     @Override
     public void open(Map conf, TopologyContext context, SpoutOutputCollector collector) {
+        super.open(conf, context, collector);
         _collector = collector;
 
 	Map stateConf = new HashMap(conf);
